@@ -48,13 +48,13 @@ if (Serial.available() > 0 )
   else if (inputs-100>=22&&inputs-100<=53) { digitalWrite(inputs-100,LOW); }
     //trigger Mode
   else   {
-       for(i=0;i<=12;i++)
+       for(i=0;i<=11;i++)
         {if (inputs-200 == arduinoValvePin[i]){ ValveMode[i] = 1; ValveOpenStartTime[i] = timeNow; digitalWrite(arduinoValvePin[i],HIGH);break;}
         } }//else end
 }//serial read end
 
 //valve Trig end
-  for(i=0;i<=12;i++)
+  for(i=0;i<=11;i++)
   {if (ValveMode[i] == 1&&(timeNow - ValveOpenStartTime[i]>ValveOpenDuration[i])){ ValveMode[i] = 0; digitalWrite(arduinoValvePin[i],LOW);}
   }
 }// loop end
