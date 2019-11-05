@@ -22,7 +22,7 @@ function varargout = TwoBottlePreference(varargin)
 
 % Edit the above text to modify the response to help TwoBottlePreference
 
-% Last Modified by GUIDE v2.5 02-Nov-2019 17:25:57
+% Last Modified by GUIDE v2.5 05-Nov-2019 11:38:11
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -51,6 +51,15 @@ function TwoBottlePreference_OpeningFcn(hObject, eventdata, handles, varargin)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 % varargin   command line arguments to TwoBottlePreference (see VARARGIN)
+setappdata(0,'TouchSensorResetCommand',100);
+setappdata(0,'SessionStartCommand',101);
+setappdata(0,'SessionStopCommand',102);
+setappdata(0,'SpoutValvePin',22:33);
+%%%%lick data file notes
+%column 1: time stamp
+%column 2: specification. 0~11: lick channel lick onset. 100~111: lick
+%channel lick offset. -1: session start. -2: session pause. -3: session
+%resume.  -4: session stop
 
 % Choose default command line output for TwoBottlePreference
 handles.output = hObject;
@@ -127,7 +136,7 @@ LickFileName = [DataFolderPath,'\',fileTime, '.dat'];
 setappdata(0,'LickFileName',LickFileName);
 setappdata(0,'DataFolderPath',DataFolderPath);
 dlmwrite(LickFileName,[now,-1],'-append');%record start time stamp, use datetime(x,'ConvertFrom','datenum') to convert
-fwrite(handles.serial_1,101);%start lick detect command to arduino
+fwrite(handles.serial_1,getappdata(0,'SessionStartCommand'));%start lick detect command to arduino
 start(LickReadTimer);
 start(LickSaveTimer);
 if get(handles.radiobutton_TestTime,'value')
@@ -146,14 +155,15 @@ function pushbutton_stop_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 set(handles.pushbutton_stop,'Visible','off');
 set(handles.pushbutton_start,'Visible','on');
+dlmwrite(getappdata(0,'LickFileName'),[now,-4],'-append');%record start time stamp
 ts = timerfind;
 if ~isempty(ts)
 stop(timerfind); 
 delete(timerfind);
 end
 try
-fwrite(handles.serial_1,102);%arduino session stop command
-fwrite(handles.serial_1,0);%arduino command
+    fwrite(handles.serial_1,getappdata(0,'SessionStopCommand'));%arduino session stop command
+    fwrite(handles.serial_1,0);%arduino command
 catch
 end
 %%%save non saved data, if there is
@@ -162,16 +172,16 @@ if LickBuffer(1,1)>=1
     dlmwrite(getappdata(0,'LickFileName'),LickBuffer(2:LickBuffer(1,1)+1,:),'-append');    
     setappdata(0,'LickBuffer',zeros(501,2));
 end
-disp('stopped');
+disp('Well Done! Session Stopped');
 
 
-% --- Executes on button press in radiobutton_com.
-function radiobutton_com_Callback(hObject, eventdata, handles)
-% hObject    handle to radiobutton_com (see GCBO)
+% --- Executes on button press in radiobutton_ConnectArduinoCom.
+function radiobutton_ConnectArduinoCom_Callback(hObject, eventdata, handles)
+% hObject    handle to radiobutton_ConnectArduinoCom (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hint: get(hObject,'Value') returns toggle state of radiobutton_com
+% Hint: get(hObject,'Value') returns toggle state of radiobutton_ConnectArduinoCom
 if get(hObject,'value')    
     com = ['COM',get(handles.edit_com,'string')];
     try
@@ -314,4 +324,71 @@ function edit_TestTime_CreateFcn(hObject, eventdata, handles)
 %       See ISPC and COMPUTER.
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
+end
+
+
+
+function edit_command_Callback(hObject, eventdata, handles)
+% hObject    handle to edit_command (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit_command as text
+%        str2double(get(hObject,'String')) returns contents of edit_command as a double
+command = get(hObject,'string');
+set(handles.edit_command,'string',[]);
+command = str2num(command);
+fwrite(handles.serial_1,command);
+str = ['Command is: ',num2str(command)];
+disp(str);
+
+% --- Executes during object creation, after setting all properties.
+function edit_command_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit_command (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in pushbutton_sendCommand.
+function pushbutton_sendCommand_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton_sendCommand (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+edit_command_Callback(hObject, eventdata, handles)
+
+
+% --- Executes during object creation, after setting all properties.
+function pushbutton_pause_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to pushbutton_pause (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+
+% --- Executes on button press in pushbutton_habituation.
+function pushbutton_habituation_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton_habituation (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+handles.output = hObject;
+% Update handles structure
+guidata(hObject, handles);
+str = get(hObject,'String');
+%%%% stop
+if strcmp(str,'Hab')
+    Habituation_timer = timer('TimerFcn',{@Habituation_timer_callback_fcn,handles},'Period',300,'ExecutionMode','fixedRate','tag','Habituation_timer');
+    start(Habituation_timer);
+    set(hObject,'String','StHab','BackgroundColor',[0.9 0.2 0.2]);
+end
+if strcmp(str,'StHab')
+    ts = timerfind('tag','Habituation_timer');
+    if ~isempty(ts)
+    stop(ts);delete(ts);
+    end
+    set(hObject,'String','Hab','BackgroundColor',[0.94 0.94 0.94]);
 end
